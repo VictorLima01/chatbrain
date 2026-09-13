@@ -1,0 +1,91 @@
+services:
+  api:
+    image: ${ECR_REGISTRY}/cloudability-api:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # O pool que deixa o Neon suspender já vem correto do application.yml
+      # (seção 4.4). Estas variáveis existem só para ajustar sem rebuild —
+      # descomente se precisar.
+      # DB_POOL_MIN_IDLE: "0"
+      # DB_POOL_IDLE_TIMEOUT: "30000"
+      # DB_POOL_MAX_LIFETIME: "280000"
+
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: claude-opus-5
+      ANTHROPIC_EFFORT: high
+
+      EMBEDDING_PROVIDER: tei
+      EMBEDDING_URL: http://embeddings:80
+      EMBEDDING_DIMENSIONS: "384"
+
+      # Mesma origem: o Caddy serve o front e a API. CORS não entra em jogo,
+      # mas a lista fica aqui para o caso de você abrir um cliente externo.
+      CORS_ORIGINS: https://${SITE_DOMAIN}
+
+      # ---------------------------------------------------------- material
+      # Repare no que NÃO está aqui: nenhuma credencial da AWS. Sem
+      # MATERIAL_ENDPOINT o SDK fala com o S3 de verdade; sem AWS_ACCESS_KEY_ID
+      # ele percorre a cadeia padrão até a IAM Role da instância.
+      MATERIAL_PROVIDER: s3
+      MATERIAL_BUCKET: ${MATERIAL_BUCKET}
+      MATERIAL_PREFIX: modules
+      MATERIAL_CREATE_BUCKET: "false"
+      AWS_REGION: ${AWS_REGION}
+
+      # ----------------------------------------------------------- alçadas
+      # student é o piso. Quem alcança /api/admin passa pelo basic_auth do
+      # Caddy, que injeta o cabeçalho de admin.
+      ACCESS_DEFAULT_LEVEL: student
+      KB_AUTO_INGEST: "false"
+
+      # Heap apertado de propósito: sobra RAM para o TEI. Serial GC porque, em
+      # heap pequeno, ele gasta menos memória que o G1.
+      JAVA_OPTS: "-Xms128m -Xmx420m -XX:+UseSerialGC -XX:MaxMetaspaceSize=180m"
+    mem_limit: 700m
+    expose: ["8080"]
+    depends_on:
+      embeddings:
+        condition: service_healthy
+
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    restart: unless-stopped
+    # --max-batch-tokens: o padrao (16384) faz o "Warming up model" alocar um
+    # lote enorme e estourar a RAM da t3.micro (OOM, exit 137). Em producao o
+    # servidor so vetoriza UMA frase por pergunta -- a indexacao pesada roda da
+    # sua maquina, no passo 7. 1024 sobra e o warmup passa.
+    command: ["--model-id", "intfloat/multilingual-e5-small", "--port", "80",
+              "--max-client-batch-size", "4",
+              "--max-batch-tokens", "1024",
+              "--tokenization-workers", "1"]
+    volumes:
+      - embeddings-cache:/data
+    mem_limit: 750m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:80/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv/web:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  embeddings-cache:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,45 @@
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	# ---------------------------------------------------------------- admin
+	# Tudo que escreve na base está sob /api/admin. É aqui que a senha forte mora.
+	@admin path /api/admin/*
+	handle @admin {
+		basic_auth {
+			admin {$ADMIN_PASSWORD_HASH}
+		}
+		reverse_proxy api:8080 {
+			header_up X-Access-Level admin
+			flush_interval -1
+		}
+	}
+
+	# ------------------------------------------------------------------ api
+	# flush_interval -1 desliga o buffering. Sem isso o SSE chega de uma vez só
+	# no fim, em vez de token a token, e a bolinha animada fica girando à toa.
+	handle /api/* {
+		reverse_proxy api:8080 {
+			# Apaga o cabeçalho vindo do cliente. Sem esta linha, qualquer um
+			# manda "X-Access-Level: admin" e vira administrador — o
+			# AccessResolver confia no cabeçalho.
+			header_up -X-Access-Level
+			flush_interval -1
+		}
+	}
+
+	# --------------------------------------------------------------- estático
+	# O build do Vite. try_files manda toda rota desconhecida para o index.html,
+	# que é o que uma SPA precisa.
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

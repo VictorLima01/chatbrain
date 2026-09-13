@@ -39,3 +39,6 @@ infra/tfplan
 
 # O .terraform.lock.hcl NAO entra aqui de proposito: versiona-lo e o que
 # garante a mesma versao do provider em qualquer maquina. Nao tem segredo.
+
+# Tarball do front gerado no 9.3 -- artefato de build, vive no S3
+web-*.tar.gz

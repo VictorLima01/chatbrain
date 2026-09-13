@@ -1621,9 +1621,16 @@ aws ssm put-parameter --name "/cloudability/db_user" `
 aws ssm put-parameter --name "/cloudability/db_password" `
   --type SecureString --value "sua-senha-do-neon" --overwrite
 
-# Gerado no passo 9 — deixe um placeholder por enquanto
+# ATENCAO: o Caddy exige um hash bcrypt VALIDO aqui. Um texto qualquer
+# ("placeholder") faz o basic_auth falhar na largada, com
+# "base64-decoding password: illegal base64 data", e o container entra em
+# loop de reinicio. Gere o hash de verdade agora -- e o mesmo comando do
+# passo 9, so que antecipado:
+#
+#   docker run --rm caddy:2-alpine caddy hash-password --plaintext "SUA-SENHA"
+#
 aws ssm put-parameter --name "/cloudability/admin_password_hash" `
-  --type SecureString --value "placeholder" --overwrite
+  --type SecureString --value "$2a$14$..." --overwrite
 ```
 
 Conferir (sem revelar os valores):
@@ -1825,10 +1832,16 @@ services:
   embeddings:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
     restart: unless-stopped
-    command: ["--model-id", "intfloat/multilingual-e5-small", "--port", "80", "--max-client-batch-size", "8"]
+    # --max-batch-tokens: o padrao (16384) faz o "Warming up model" alocar um
+    # lote enorme e estourar a RAM da t3.micro (OOM, exit 137). Em producao o
+    # servidor so vetoriza UMA frase por pergunta.
+    command: ["--model-id", "intfloat/multilingual-e5-small", "--port", "80",
+              "--max-client-batch-size", "4",
+              "--max-batch-tokens", "1024",
+              "--tokenization-workers", "1"]
     volumes:
       - embeddings-cache:/data
-    mem_limit: 900m
+    mem_limit: 750m
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:80/health"]
       interval: 15s
@@ -1852,6 +1865,7 @@ services:
 volumes:
   embeddings-cache:
   caddy-data:
+  caddy-config:
 ```
 
 **`deploy/deploy.sh`** — o que o SSM executa na instância:
