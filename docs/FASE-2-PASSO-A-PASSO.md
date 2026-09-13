@@ -1888,11 +1888,24 @@ aws s3 cp "s3://$ARTIFACTS_BUCKET/deploy/Caddyfile"                ./Caddyfile
 aws s3 cp "s3://$ARTIFACTS_BUCKET/deploy/docker-compose.prod.yml"  ./docker-compose.prod.yml
 aws s3 cp "s3://$ARTIFACTS_BUCKET/web/web-$IMAGE_TAG.tar.gz"       /tmp/web.tar.gz
 
-rm -rf "$APP/web" && mkdir -p "$APP/web"
-tar -xzf /tmp/web.tar.gz -C "$APP/web" && rm -f /tmp/web.tar.gz
+# Cada comando na sua propria linha, de proposito. Em "A && B", o set -e NAO
+# aborta quando A falha -- e assim um deploy quebrado se declara bem sucedido.
+# O chmod existe porque um tarball criado no Windows chega com o diretorio raiz
+# em modo 0555: extraido uma vez, nenhum deploy seguinte consegue trocar o
+# index.html, e o front quebra com erro de MIME type.
+chmod -R u+w "$APP/web" 2>/dev/null || true
+rm -rf "$APP/web"
+mkdir -p "$APP/web"
+tar -xzf /tmp/web.tar.gz -C "$APP/web"
+rm -f /tmp/web.tar.gz
 
 # 2. Segredos do Parameter Store viram o .env (nunca passam pelo GitHub)
 PROJECT=$PROJECT AWS_REGION=$AWS_REGION "$APP/fetch-env.sh"
+
+# O docker compose interpola $ nos valores do --env-file: um hash bcrypt
+# ($2a$14$abc...) perde todo trecho que pareca nome de variavel e chega
+# truncado ao container -- o basic_auth passa a recusar qualquer senha.
+sed -i 's/\$/$$/g' "$APP/.env"
 
 # 3. Variáveis que não são segredo
 {
