@@ -1,0 +1,88 @@
+spring:
+  application:
+    name: cloudability-chat-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cloudability}
+    username: ${DB_USER:cloudability}
+    password: ${DB_PASSWORD:cloudability}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:0}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:30000}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME:280000}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:4173,http://localhost:3000}
+
+  # Alcadas. Enquanto auth-enabled for false NAO existe autenticacao: todo mundo
+  # que alcanca a API entra com a alcada abaixo. E o unico ponto a mexer quando o
+  # login for implementado — ver AdminAccessInterceptor.
+  access:
+    default-level: ${ACCESS_DEFAULT_LEVEL:admin}
+    auth-enabled: ${ACCESS_AUTH_ENABLED:false}
+
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${ANTHROPIC_MODEL:claude-opus-5}
+    max-tokens: ${ANTHROPIC_MAX_TOKENS:16000}
+    effort: ${ANTHROPIC_EFFORT:high}
+    # Modo economico: raciocinio mais raso e teto de saida menor. O teto e rede de
+    # seguranca — quem encurta a resposta e a instrucao no prompt.
+    economy-effort: ${ANTHROPIC_ECONOMY_EFFORT:low}
+    economy-max-tokens: ${ANTHROPIC_ECONOMY_MAX_TOKENS:4000}
+    # Imagem custa por area (um token visual por bloco de 28x28 px). Prints acima
+    # deste lado maior sao reduzidos antes de ir para a API: um print de 1920x1080
+    # cai de ~2691 para ~1196 tokens. Medido: um slide lido a 800 px ainda teve o
+    # texto transcrito sem erro, entao 1280 deixa o dobro de folga. Baixe se seus
+    # prints forem de texto grande; suba se um enunciado sair mal lido.
+    image-max-edge: ${ANTHROPIC_IMAGE_MAX_EDGE:1280}
+
+  embedding:
+    # provider: tei (local, docker) | none (fallback deterministico p/ dev sem docker)
+    provider: ${EMBEDDING_PROVIDER:tei}
+    base-url: ${EMBEDDING_URL:http://localhost:8081}
+    dimensions: ${EMBEDDING_DIMENSIONS:384}
+    # e5 exige prefixos distintos para documento e consulta
+    document-prefix: "passage: "
+    query-prefix: "query: "
+
+  rag:
+    chunk-size: 1200
+    chunk-overlap: 200
+    top-k: ${RAG_TOP_K:8}
+    # Menos trechos no modo economico: metade da economia vem daqui, a outra
+    # metade da resposta curta.
+    economy-top-k: ${RAG_ECONOMY_TOP_K:3}
+    min-score: ${RAG_MIN_SCORE:0.15}
+
+  material:
+    # s3 (padrao) | filesystem — filesystem serve para rodar sem Docker.
+    provider: ${MATERIAL_PROVIDER:s3}
+    bucket: ${MATERIAL_BUCKET:cloudability-material}
+    # Uma pasta por modulo abaixo deste prefixo: modules/<slug>/...
+    prefix: ${MATERIAL_PREFIX:modules}
+    region: ${AWS_REGION:us-east-1}
+    # Preenchido so no local, para o LocalStack. Em branco na AWS = S3 de verdade.
+    endpoint: ${MATERIAL_ENDPOINT:}
+    # Em branco na AWS: sem chave, o SDK cai na IAM Role da instancia EC2.
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    create-bucket: ${MATERIAL_CREATE_BUCKET:false}
+    # Raiz em disco, usada apenas quando provider = filesystem.
+    base-path: ${MATERIAL_BASE_PATH:../material}
+    auto-sync-on-startup: ${KB_AUTO_INGEST:false}
+
+logging:
+  level:
+    com.chat.cloudability.ibm: INFO

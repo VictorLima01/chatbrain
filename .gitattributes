@@ -1,0 +1,19 @@
+# Normalizacao de fim de linha.
+# core.autocrlf=true no Windows gravaria CRLF nestes arquivos, e um \r
+# quebra script que roda em Linux: o user_data da EC2, o deploy.sh e os
+# comandos RUN dos Dockerfiles.
+* text=auto
+
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.conf      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# Binarios: nao normalizar
+*.png binary
+*.pdf binary
+*.PDF binary

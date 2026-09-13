@@ -1,0 +1,166 @@
+services:
+  # ---------------------------------------------------------------- Postgres
+  # Banco relacional + base vetorial (extensao pgvector) na mesma instancia.
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: cloudability-db
+    environment:
+      POSTGRES_DB: cloudability
+      POSTGRES_USER: cloudability
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cloudability}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudability -d cloudability"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --------------------------------------------------------------- LocalStack
+  # S3 de mentira, com a mesma API do de verdade. O material de estudo mora aqui
+  # localmente e num bucket real na AWS — o backend nao sabe a diferenca, so muda
+  # MATERIAL_ENDPOINT.
+  #
+  # A edicao community nao persiste objetos entre reinicios: por isso o servico
+  # `material-seed` abaixo roda a cada `docker compose up` e repovoa o bucket.
+  localstack:
+    image: localstack/localstack:3
+    container_name: cloudability-s3
+    environment:
+      SERVICES: s3
+      EAGER_SERVICE_LOADING: "1"
+      DEBUG: "0"
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4566/_localstack/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # ------------------------------------------------------------- Carga inicial
+  # Cria o bucket e sobe o material de `ingestao/` para a pasta do modulo padrao.
+  # Uma pasta por modulo — modules/<slug>/... — e o mesmo layout usado na AWS.
+  #
+  # Os .MP4 ficam de fora: a ingestao le as legendas (.vtt), nao os videos. Subir
+  # centenas de MB de video para o S3 so gastaria tempo e disco.
+  material-seed:
+    # `latest` de proposito: a imagem oficial da AWS CLI nao publica tag de major
+    # (`:2` nao existe), so versoes completas como `2.15.0` e `latest`.
+    image: amazon/aws-cli:latest
+    container_name: cloudability-material-seed
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${MATERIAL_ACCESS_KEY:-test}
+      AWS_SECRET_ACCESS_KEY: ${MATERIAL_SECRET_KEY:-test}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      BUCKET: ${MATERIAL_BUCKET:-cloudability-material}
+      ENDPOINT: http://localstack:4566
+      # A AWS CLI recente assina upload multipart com checksum CRC64NVME, que o
+      # LocalStack 3 nao implementa — os arquivos grandes (PPTX) falhavam com
+      # "Checksum algorithm provided is unsupported". Sem checksum obrigatorio,
+      # o upload volta a usar o caminho que ele entende. No S3 de verdade isso
+      # nao faz falta: a integridade continua garantida pelo MD5 da parte.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+    entrypoint: ["/bin/sh", "-c"]
+    # Lista de UM item, e nao uma string solta: um `command` em formato string e
+    # quebrado em palavras pelo Compose, e o script chegaria ao `sh -c` picado em
+    # varios argumentos — so a primeira palavra rodaria.
+    command:
+      - |
+        set -e
+        aws --endpoint-url "$$ENDPOINT" s3api head-bucket --bucket "$$BUCKET" >/dev/null 2>&1 \
+          || aws --endpoint-url "$$ENDPOINT" s3 mb "s3://$$BUCKET"
+        aws --endpoint-url "$$ENDPOINT" s3 sync /seed/ingestao "s3://$$BUCKET/modules/cloudability" \
+          --exclude "*.mp4" --exclude "*.MP4" --no-progress
+        aws --endpoint-url "$$ENDPOINT" s3 sync /seed/agents "s3://$$BUCKET/modules/cloudability/agents" \
+          --no-progress
+        echo "Material do modulo cloudability publicado em s3://$$BUCKET/modules/cloudability/"
+    volumes:
+      - ./ingestao:/seed/ingestao:ro
+      - ./.claude/agents:/seed/agents:ro
+
+  # -------------------------------------------------------------- Embeddings
+  # A Anthropic nao expoe endpoint de embeddings: o Claude gera as respostas e
+  # este servico gera os vetores. Modelo multilingue pequeno, roda em CPU.
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    container_name: cloudability-embeddings
+    command: ["--model-id", "intfloat/multilingual-e5-small", "--port", "80"]
+    ports:
+      - "8081:80"
+    volumes:
+      - embeddings-cache:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:80/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+  # ------------------------------------------------------------------ Backend
+  api:
+    build:
+      context: ./ibm
+    container_name: cloudability-api
+    depends_on:
+      db:
+        condition: service_healthy
+      embeddings:
+        condition: service_healthy
+      material-seed:
+        condition: service_completed_successfully
+    environment:
+      # Padrao: o Postgres do proprio compose (servico `db`). Definir DB_URL,
+      # DB_USER e DB_PASSWORD no .env aponta a API para OUTRO banco sem tocar
+      # neste arquivo — e o que a fase 2 faz para validar o Neon antes de
+      # existir qualquer coisa na AWS (docs/FASE-2-PASSO-A-PASSO.md, secao 4.5).
+      #
+      # Apontando para fora, o servico `db` continua subindo por causa do
+      # depends_on, mas ninguem fala com ele. E desperdicio de RAM, nao erro.
+      DB_URL: ${DB_URL:-jdbc:postgresql://db:5432/cloudability}
+      DB_USER: ${DB_USER:-cloudability}
+      DB_PASSWORD: ${DB_PASSWORD:-cloudability}
+      EMBEDDING_PROVIDER: tei
+      EMBEDDING_URL: http://embeddings:80
+      EMBEDDING_DIMENSIONS: "384"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
+      ANTHROPIC_EFFORT: ${ANTHROPIC_EFFORT:-high}
+      CORS_ORIGINS: http://localhost,http://localhost:5173
+      # ---------------------------------------------------------- material
+      # Local: endpoint do LocalStack + credenciais de brinquedo.
+      # Na AWS: nada disso e definido e o SDK usa a IAM Role da instancia EC2.
+      MATERIAL_PROVIDER: s3
+      MATERIAL_BUCKET: ${MATERIAL_BUCKET:-cloudability-material}
+      MATERIAL_PREFIX: modules
+      MATERIAL_ENDPOINT: http://localstack:4566
+      MATERIAL_CREATE_BUCKET: "true"
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${MATERIAL_ACCESS_KEY:-test}
+      AWS_SECRET_ACCESS_KEY: ${MATERIAL_SECRET_KEY:-test}
+      # ---------------------------------------------------------- alcadas
+      # Sem autenticacao ainda: todo mundo entra com esta alcada.
+      ACCESS_DEFAULT_LEVEL: ${ACCESS_DEFAULT_LEVEL:-admin}
+      KB_AUTO_INGEST: ${KB_AUTO_INGEST:-false}
+    ports:
+      - "8080:8080"
+
+  # ----------------------------------------------------------------- Frontend
+  web:
+    build:
+      context: ./web
+    container_name: cloudability-web
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+
+volumes:
+  db-data:
+  embeddings-cache:
