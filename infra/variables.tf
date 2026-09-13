@@ -38,6 +38,19 @@ variable "github_repo" {
   type        = string
 }
 
+variable "github_repo_immutable" {
+  description = <<-EOT
+    Forma imutavel do repositorio, como o GitHub emite hoje no claim "sub" do
+    OIDC: usuario@ID_DA_CONTA/repo@ID_DO_REPO. Os IDs numericos nao mudam se
+    voce renomear a conta ou o repositorio -- e por isso que o GitHub passou a
+    usa-los. Descubra o valor real no CloudTrail, no campo userName do evento
+    AssumeRoleWithWebIdentity. Deixe vazio se o seu sub ainda vier no formato
+    antigo; os dois formatos sao aceitos.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "create_github_oidc_provider" {
   description = "false se a conta já tiver o provider do GitHub (só pode existir um)."
   type        = bool

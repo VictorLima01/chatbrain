@@ -42,10 +42,17 @@ data "aws_iam_policy_document" "github_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
+    # Dois valores exatos, nao um curinga. O GitHub emite o "sub" com IDs
+    # numericos imutaveis (repo:dono@123/repo@456:...), mas nem toda conta
+    # migrou. Aceitar os dois cobre a transicao sem afrouxar nada: um padrao
+    # como "repo:dono*/repo*" casaria tambem com "dono-falso/repo-falso".
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
+      values = compact([
+        "repo:${var.github_repo}:ref:refs/heads/main",
+        var.github_repo_immutable != "" ? "repo:${var.github_repo_immutable}:ref:refs/heads/main" : "",
+      ])
     }
   }
 }
