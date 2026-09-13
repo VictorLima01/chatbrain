@@ -1,6 +1,7 @@
 :root {
   --bg: #0f1117;
-  --bg-sidebar: #0a0c11;
+  --bg-sidebar: #0b1626;
+  --border-sidebar: #16233a;
   --bg-elevated: #171a22;
   --bg-hover: #1e222c;
   --border: #262b36;
@@ -37,7 +38,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   width: 280px;
   flex: 0 0 280px;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--border-sidebar);
   display: flex;
   flex-direction: column;
   padding: 14px 12px;
