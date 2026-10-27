@@ -76,15 +76,25 @@ um tutor precisa saber de uma tabela é a **estrutura** dela — que colunas exi
 os valores, qual o tamanho.
 
 É o caso dos dados do desafio (`13_Desafio_Burgubras/`). Os arquivos originais ficam no bucket para
-download, e `scripts/dicionario-de-dados.py` lê os CSVs e as abas da planilha e escreve um
-`DICIONARIO_DE_DADOS.md` — colunas, contagem de linhas e três linhas de exemplo por tabela. Esse
-Markdown é o que a ingestão indexa:
+download, e `scripts/dicionario-de-dados.py` lê os CSVs e as abas da planilha e escreve o que a
+ingestão indexa: um `dicionario/<Tabela>.md` por tabela — colunas, contagem de linhas e duas linhas
+de exemplo abreviadas — mais um `DICIONARIO_DE_DADOS.md` que serve de índice.
 
 ```bash
-python scripts/dicionario-de-dados.py ingestao-apptio-costing/13_Desafio_Burgubras
+python scripts/dicionario-de-dados.py ingestao-apptio-costing/13_Desafio_Burgubras \
+  --validar http://localhost:8081
 ```
 
-Rode de novo quando os dados mudarem, e sincronize o módulo depois.
+**Um arquivo por tabela não é organização, é o limite do modelo.** O `multilingual-e5-small` recusa
+entradas acima de **512 tokens**, e texto tabular tokeniza muito mais denso que prosa: códigos como
+`A50110000` viram vários tokens cada. Num arquivo único, o chunker empilhava a lista de colunas de
+uma tabela com a da seguinte e o trecho chegava a 601 tokens — o TEI devolvia 413 e o documento
+inteiro falhava na ingestão (com uma mensagem enganosa, sugerindo que o container estava fora do
+ar). Separado por tabela, o pior trecho fica em 465 tokens.
+
+O `--validar` existe para isso: ele passa uma janela do tamanho do chunk por `/tokenize` e falha
+(saída 1) se algum arquivo gerado passar do limite. Use sempre que regerar, porque dado novo pode
+reapertar a margem. Depois, sincronize o módulo.
 
 ## O pipeline
 
