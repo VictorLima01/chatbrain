@@ -23,11 +23,23 @@ aws s3 cp "s3://$ARTIFACTS_BUCKET/web/web-$IMAGE_TAG.tar.gz"       /tmp/web.tar.
 # em modo 0555. Extraido uma vez, ele deixa $APP/web sem permissao de escrita, e
 # a partir dai nenhum deploy consegue trocar o index.html -- os assets mudam, o
 # index.html fica para tras e o front quebra com erro de MIME type.
+#
+# E o diretorio NAO pode ser apagado: ele e a origem do bind mount
+# ./web:/srv/web do Caddy. O bind e resolvido para um inode quando o container
+# comeca, entao "rm -rf web && mkdir web" troca o inode debaixo de um Caddy que
+# segue rodando -- ele continua montando o diretorio removido, passa a servir o
+# vazio, e todo caminho vira 404 enquanto o deploy se declara bem sucedido. Foi
+# o que derrubou o front no segundo deploy: no primeiro o container era novo e
+# montava o diretorio certo. Esvazie o conteudo preservando o diretorio.
 chmod -R u+w "$APP/web" 2>/dev/null || true
-rm -rf "$APP/web"
 mkdir -p "$APP/web"
+find "$APP/web" -mindepth 1 -delete
 tar -xzf /tmp/web.tar.gz -C "$APP/web"
 rm -f /tmp/web.tar.gz
+
+# Extraiu mesmo? Um tarball truncado ou com outra estrutura nao da erro no tar,
+# e sem esta checagem o 404 so aparece no navegador.
+test -f "$APP/web/index.html"
 
 # 2. Segredos do Parameter Store viram o .env (nunca passam pelo GitHub)
 PROJECT=$PROJECT AWS_REGION=$AWS_REGION "$APP/fetch-env.sh"
@@ -54,7 +66,20 @@ aws ecr get-login-password --region "$AWS_REGION" |
 docker compose --env-file "$APP/.env" -f docker-compose.prod.yml up -d --pull always
 docker image prune -f
 
-# 5. Esperar a API responder antes de declarar sucesso
+# 5. O front precisa estar visivel DENTRO do Caddy, nao so no disco do host:
+# e o container que serve, e e exatamente ai que mora a armadilha do bind mount
+# descrita no passo 1. Sem esta checagem, "API no ar" convive com um site 404.
+if ! docker compose -f docker-compose.prod.yml exec -T caddy \
+     test -f /srv/web/index.html; then
+  echo "O Caddy nao ve /srv/web/index.html -- bind mount apontando para um"
+  echo "diretorio antigo. Recriando o container para refazer o mount."
+  docker compose --env-file "$APP/.env" -f docker-compose.prod.yml \
+    up -d --force-recreate caddy
+  docker compose -f docker-compose.prod.yml exec -T caddy \
+    test -f /srv/web/index.html
+fi
+
+# 6. Esperar a API responder antes de declarar sucesso
 for i in $(seq 1 30); do
   if docker compose -f docker-compose.prod.yml exec -T api \
        wget -qO- http://localhost:8080/api/knowledge/status >/dev/null 2>&1; then
