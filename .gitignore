@@ -23,6 +23,10 @@ material/
 # 133 PDFs, ~100 MB: nao inchar o repositorio com o que ja esta no S3.
 ingestao/
 
+# Mesma regra para o material do modulo apptio-costing (65 arquivos, 21 MB):
+# copia local do que esta em modules/apptio-costing/ no bucket.
+ingestao-apptio-costing/
+
 # IDE / SO
 .idea/
 .vscode/
@@ -34,6 +38,10 @@ Thumbs.db
 infra/.terraform/
 infra/*.tfstate
 infra/*.tfstate.*
+# State solto na raiz, de um terraform rodado fora de infra/. Nao e so sujeira:
+# state versionado vaza o que estiver marcado como sensitive.
+/terraform.tfstate
+/terraform.tfstate.*
 infra/terraform.tfvars
 infra/tfplan
 

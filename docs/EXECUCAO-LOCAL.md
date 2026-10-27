@@ -73,6 +73,10 @@ Antes disso, o serviço `material-seed` já publicou o conteúdo de `ingestao/` 
 `s3://cloudability-material/modules/cloudability/`. É de lá que a sincronização lê — o backend não
 enxerga mais o disco do projeto.
 
+O mesmo vale para o segundo módulo de fábrica: `ingestao-apptio-costing/` é publicado em
+`.../modules/apptio-costing/`. A sincronização é **por módulo** — selecione **IBM Apptio Costing
+Standard** na administração e clique em **Sincronizar material** para indexar esse material também.
+
 O container de embeddings baixa o modelo (~470 MB) no primeiro boot. O healthcheck dá 2 minutos
 para isso; enquanto ele não fica saudável, o backend não sobe (é a dependência declarada no compose).
 
@@ -85,7 +89,7 @@ para isso; enquanto ele não fica saudável, o backend não sobe (é a dependên
 |---|---|---|
 | `db` | 5432 | Postgres 16 + pgvector |
 | `localstack` | 4566 | S3 local — guarda o material de estudo |
-| `material-seed` | — | One-shot: cria o bucket e publica `ingestao/` no módulo `cloudability` |
+| `material-seed` | — | One-shot: cria o bucket e publica `ingestao/` no módulo `cloudability` e `ingestao-apptio-costing/` no módulo `apptio-costing` |
 | `embeddings` | 8081 | Text Embeddings Inference (CPU) |
 | `api` | 8080 | Backend Spring Boot |
 | `web` | 80 | Frontend servido por nginx, com proxy para `/api` |
@@ -158,8 +162,9 @@ $env:MATERIAL_PROVIDER = "filesystem"   # base-path padrao: ../material, a parti
 
 ```bash
 # entao copie o material para a pasta do modulo, no mesmo layout do bucket
-mkdir -p material/modules/cloudability
+mkdir -p material/modules/cloudability material/modules/apptio-costing
 cp -r ingestao/* material/modules/cloudability/
+cp -r ingestao-apptio-costing/* material/modules/apptio-costing/
 ```
 
 > `JAVA_HOME` já aponta para o JDK 21, então não precisa mais ajustá-lo — o `mvn -v` confirma

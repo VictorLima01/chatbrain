@@ -14,6 +14,7 @@ dentro da consulta de recuperação. Ver *Como a busca funciona*, abaixo.
 | Módulo | Origem |
 |---|---|
 | `cloudability` | De fábrica, criado pela migração `V2__modules.sql`. Não pode ser removido |
+| `apptio-costing` | De fábrica, criado pela migração `V3__modulo_apptio_costing.sql`. Material do curso Apptio Costing Standard Practitioner Advanced |
 | qualquer outro | Criado por um administrador na área de administração |
 
 Cada módulo tem uma **persona** — o "quem você é" do tutor naquele assunto, editável pelo
@@ -31,13 +32,19 @@ s3://cloudability-material/
       L1/  L2/  L4/     material sincronizado da pasta ingestao/ do projeto
       agents/           base curada do agente especialista
       enviados/         uploads feitos pela interface
+    apptio-costing/
+      00_Visao_Geral_Curso/ ... 12_Technology_Emissions_Management/
+                        material sincronizado de ingestao-apptio-costing/
+      agents/           apptio-costing-expert e technology-emissions-expert
+      enviados/
     <outro-modulo>/
       enviados/
 ```
 
 Local, quem serve esse S3 é o **LocalStack** (ver `docker-compose.yml`); o serviço `material-seed`
-publica o conteúdo de `ingestao/` no módulo `cloudability` a cada `docker compose up`. Na AWS é um
-bucket de verdade, acessado pela IAM Role da instância EC2 — mesma API, mesmo código.
+publica `ingestao/` no módulo `cloudability` e `ingestao-apptio-costing/` no módulo
+`apptio-costing` a cada `docker compose up`. Na AWS é um bucket de verdade, acessado pela IAM Role
+da instância EC2 — mesma API, mesmo código.
 
 > Os arquivos `.mp4` são **ignorados** e nem chegam ao bucket: o conteúdo dos vídeos entra pelas
 > legendas `.vtt`, que trazem a mesma informação em texto e ocupam alguns KB em vez de centenas de MB.

@@ -81,9 +81,15 @@ services:
         aws --endpoint-url "$$ENDPOINT" s3 sync /seed/agents "s3://$$BUCKET/modules/cloudability/agents" \
           --no-progress
         echo "Material do modulo cloudability publicado em s3://$$BUCKET/modules/cloudability/"
+        aws --endpoint-url "$$ENDPOINT" s3 sync /seed/apptio "s3://$$BUCKET/modules/apptio-costing" \
+          --exclude "*.mp4" --exclude "*.MP4" --no-progress
+        echo "Material do modulo apptio-costing publicado em s3://$$BUCKET/modules/apptio-costing/"
     volumes:
       - ./ingestao:/seed/ingestao:ro
       - ./.claude/agents:/seed/agents:ro
+      # Segundo modulo de fabrica. Os agentes do curso ja vem dentro da pasta,
+      # em agents/ — diferente do cloudability, cujos agentes moram neste repo.
+      - ./ingestao-apptio-costing:/seed/apptio:ro
 
   # -------------------------------------------------------------- Embeddings
   # A Anthropic nao expoe endpoint de embeddings: o Claude gera as respostas e

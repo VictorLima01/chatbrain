@@ -11,10 +11,20 @@ nunca alcança o material de outro.
 ├── ibm/        backend   · Spring Boot 4 · Java 21 (ports & adapters)
 ├── web/        frontend  · React · Vite · TypeScript
 ├── docs/       documentação do projeto
-└── ingestao/   material do módulo `cloudability` — publicado no S3 pelo compose
-    ├── L1/ L2/ L4/
-    └── Perguntas.png
+├── ingestao/   material do módulo `cloudability` — publicado no S3 pelo compose
+│   ├── L1/ L2/ L4/
+│   └── Perguntas.png
+└── ingestao-apptio-costing/   material do módulo `apptio-costing`
+    ├── 00_Visao_Geral_Curso/ ... 12_Technology_Emissions_Management/
+    └── agents/   base curada dos agentes do curso
 ```
+
+Dois módulos vêm de fábrica:
+
+| Módulo | Assunto |
+|---|---|
+| `cloudability` | Certificação IBM Cloudability (Apptio) — L1, L2 e L4 |
+| `apptio-costing` | Curso IBM Apptio Costing Standard Practitioner Advanced — ATUM, model flow, Datalink, TBM Studio, solution packs, TEM |
 
 ## Começando
 
@@ -25,9 +35,10 @@ docker compose up --build
 
 Acesse **http://localhost** → menu **Administração** → **Sincronizar material**.
 
-O compose sobe um S3 local (LocalStack) e publica `ingestao/` em
-`s3://cloudability-material/modules/cloudability/` antes do backend subir. É de lá que a
-sincronização lê.
+O compose sobe um S3 local (LocalStack) e publica cada pasta de material na pasta do seu módulo —
+`ingestao/` em `s3://cloudability-material/modules/cloudability/` e `ingestao-apptio-costing/` em
+`.../modules/apptio-costing/` — antes do backend subir. É de lá que a sincronização lê, um módulo
+por vez.
 
 > Para rodar sem Docker, veja a Opção B em [docs/EXECUCAO-LOCAL.md](docs/EXECUCAO-LOCAL.md).
 

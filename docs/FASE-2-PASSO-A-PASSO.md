@@ -766,8 +766,14 @@ aws s3 sync ./ingestao "s3://$BUCKET/modules/cloudability" `
 # Base do agente especialista
 aws s3 sync ./.claude/agents "s3://$BUCKET/modules/cloudability/agents"
 
+# Segundo modulo de fabrica: Apptio Costing Standard (65 arquivos, 21 MB).
+# Os agentes do curso ja vem dentro da pasta, em agents/ -- nao ha sync separado.
+aws s3 sync ./ingestao-apptio-costing "s3://$BUCKET/modules/apptio-costing" `
+  --exclude "*.mp4" --exclude "*.MP4"
+
 # Conferir
-aws s3 ls "s3://$BUCKET/modules/cloudability/" --recursive --summarize | Select-Object -Last 5
+aws s3 ls "s3://$BUCKET/modules/cloudability/"   --recursive --summarize | Select-Object -Last 5
+aws s3 ls "s3://$BUCKET/modules/apptio-costing/" --recursive --summarize | Select-Object -Last 5
 ```
 
 Se você converteu os PPTX do L2 em PDF, acrescente `--exclude "L2/*.PPTX"`.
@@ -2051,6 +2057,15 @@ docker compose up -d --build api embeddings web
 
 Abra `http://localhost` → **Administração** → módulo `cloudability` → **Sincronizar material**.
 A barra mostra o progresso; com o material enxuto do passo 3 leva de 10 a 25 minutos.
+
+A sincronização é **por módulo**: repita com `apptio-costing` selecionado (esse é mais rápido — 65
+arquivos, sem imagem para a visão do Claude transcrever). Para uma indexação longa, chamar a API
+direto no container evita o `proxy_read_timeout` de 10 minutos do nginx:
+
+```bash
+docker compose exec -T api wget -q --timeout=0 --post-data='' -O - \
+  http://localhost:8080/api/admin/modules/apptio-costing/sync
+```
 
 Ao terminar, confira no Neon:
 
