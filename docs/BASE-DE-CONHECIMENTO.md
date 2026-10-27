@@ -35,6 +35,9 @@ s3://cloudability-material/
     apptio-costing/
       00_Visao_Geral_Curso/ ... 12_Technology_Emissions_Management/
                         material sincronizado de ingestao-apptio-costing/
+      13_Desafio_Burgubras/
+                        desafio pratico: guia, roteiro, CSVs de carga e o
+                        DICIONARIO_DE_DADOS.md gerado a partir deles
       agents/           apptio-costing-expert e technology-emissions-expert
       enviados/
     <outro-modulo>/
@@ -64,6 +67,24 @@ Para rodar o backend sem Docker, `MATERIAL_PROVIDER=filesystem` troca o S3 por
 
 > A transcrição de imagem consome tokens da API. É por isso que o `Perguntas.png` só é reprocessado
 > quando o arquivo muda.
+
+### Dados tabulares: `.csv` e `.xlsx` não entram
+
+Não há extrator para planilha, e não é esquecimento: um CSV de 47 mil linhas viraria milhares de
+chunks de linhas quase idênticas, que a busca híbrida devolveria no lugar de conteúdo útil. O que
+um tutor precisa saber de uma tabela é a **estrutura** dela — que colunas existem, com que cara são
+os valores, qual o tamanho.
+
+É o caso dos dados do desafio (`13_Desafio_Burgubras/`). Os arquivos originais ficam no bucket para
+download, e `scripts/dicionario-de-dados.py` lê os CSVs e as abas da planilha e escreve um
+`DICIONARIO_DE_DADOS.md` — colunas, contagem de linhas e três linhas de exemplo por tabela. Esse
+Markdown é o que a ingestão indexa:
+
+```bash
+python scripts/dicionario-de-dados.py ingestao-apptio-costing/13_Desafio_Burgubras
+```
+
+Rode de novo quando os dados mudarem, e sincronize o módulo depois.
 
 ## O pipeline
 

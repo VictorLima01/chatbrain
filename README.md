@@ -14,9 +14,11 @@ nunca alcança o material de outro.
 ├── ingestao/   material do módulo `cloudability` — publicado no S3 pelo compose
 │   ├── L1/ L2/ L4/
 │   └── Perguntas.png
-└── ingestao-apptio-costing/   material do módulo `apptio-costing`
-    ├── 00_Visao_Geral_Curso/ ... 12_Technology_Emissions_Management/
-    └── agents/   base curada dos agentes do curso
+├── ingestao-apptio-costing/   material do módulo `apptio-costing`
+│   ├── 00_Visao_Geral_Curso/ ... 12_Technology_Emissions_Management/
+│   ├── 13_Desafio_Burgubras/  desafio prático: guia, roteiro, dados de carga
+│   └── agents/   base curada dos agentes do curso
+└── scripts/    utilitários — ver `dicionario-de-dados.py`
 ```
 
 Dois módulos vêm de fábrica:
